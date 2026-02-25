@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import toast from 'react-hot-toast';
-import { Plus, X, CheckCircle, Clock, PlayCircle, ChevronLeft, ChevronRight, LogIn, LogOut } from 'lucide-react';
+import { Plus, X, CheckCircle, Clock, PlayCircle, ChevronLeft, ChevronRight, LogIn, LogOut, FlaskConical, Users, TrendingUp, Beaker, Cpu } from 'lucide-react';
 import { format, addDays, subDays } from 'date-fns';
 
-const statusColors = { 'Pending': 'status-pending', 'In Progress': 'status-in-progress', 'Completed': 'status-completed' };
+const statusColors = { 'Pending': 'status-pending', 'In Progress': 'status-in-progress', 'Completed': 'status-completed', 'Planned': 'status-planned', 'Paused': 'status-paused', 'Failed': 'status-failed' };
+const expStatusOrder = ['In Progress', 'Planned', 'Paused'];
 
 export default function Planner() {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -14,6 +16,7 @@ export default function Planner() {
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [form, setForm] = useState({ title: '', description: '', user_id: '', experiment_id: '' });
+    const navigate = useNavigate();
 
     const fetchData = () => {
         Promise.all([api.get('/planner', { params: { date } }), api.get('/members'), api.get('/experiments')])
@@ -56,6 +59,25 @@ export default function Planner() {
 
     const today = new Date().toISOString().split('T')[0];
 
+    // Ongoing experiments (not Completed or Failed)
+    const ongoingExps = experiments.filter(e => ['In Progress', 'Planned', 'Paused'].includes(e.status));
+
+    // Group ongoing experiments by status
+    const expByStatus = {};
+    expStatusOrder.forEach(s => {
+        const exps = ongoingExps.filter(e => e.status === s);
+        if (exps.length > 0) expByStatus[s] = exps;
+    });
+
+    // Build a map: member -> experiments they're working on
+    const memberExpMap = {};
+    ongoingExps.forEach(exp => {
+        (exp.members || []).forEach(m => {
+            if (!memberExpMap[m.id]) memberExpMap[m.id] = { user: m, experiments: [] };
+            memberExpMap[m.id].experiments.push(exp);
+        });
+    });
+
     return (
         <div className="page-container">
             <div className="flex items-center justify-between mb-24">
@@ -85,7 +107,7 @@ export default function Planner() {
 
                     {/* Tasks by Member */}
                     {Object.keys(grouped).length === 0 ? (
-                        <div className="empty-state" style={{ minHeight: '30vh' }}><Clock size={48} /><h3>No tasks for this day</h3><p>Add tasks to plan the lab work</p></div>
+                        <div className="empty-state" style={{ minHeight: '20vh' }}><Clock size={48} /><h3>No tasks for this day</h3><p>Add tasks to plan the lab work</p></div>
                     ) : (
                         Object.entries(grouped).map(([name, { user, tasks: memberTasks }]) => (
                             <div key={name} className="card mb-16">
@@ -117,6 +139,102 @@ export default function Planner() {
                             </div>
                         ))
                     )}
+
+                    {/* ─── Ongoing Experiments Section ─── */}
+                    <div style={{ marginTop: 40 }}>
+                        <div className="flex items-center justify-between mb-20">
+                            <div>
+                                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <FlaskConical size={20} /> Ongoing Experiments
+                                </h2>
+                                <p className="text-muted mt-4" style={{ fontSize: '0.82rem' }}>{ongoingExps.length} active experiment{ongoingExps.length !== 1 ? 's' : ''} across the lab</p>
+                            </div>
+                        </div>
+
+                        {ongoingExps.length === 0 ? (
+                            <div className="card"><div className="empty-state" style={{ padding: 32 }}><FlaskConical size={36} /><h3>No ongoing experiments</h3><p>All experiments are completed or not yet started.</p></div></div>
+                        ) : (
+                            <>
+                                {/* Who is working on what — Member-centric view */}
+                                <div className="card mb-20">
+                                    <h3 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <Users size={16} /> Who is working on what
+                                    </h3>
+                                    {Object.keys(memberExpMap).length === 0 ? (
+                                        <p className="text-muted text-sm">No members assigned to ongoing experiments yet.</p>
+                                    ) : (
+                                        <div style={{ display: 'grid', gap: 12 }}>
+                                            {Object.values(memberExpMap).map(({ user: mu, experiments: exps }) => (
+                                                <div key={mu.id} style={{ padding: '14px 16px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-subtle)' }}>
+                                                    <div className="flex items-center gap-10 mb-10">
+                                                        <div className="user-avatar" style={{ background: mu.avatar_color, width: 32, height: 32, fontSize: '0.75rem' }}>{mu.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}</div>
+                                                        <div>
+                                                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{mu.name}</div>
+                                                            <div className="text-xs text-muted">{mu.role} • {exps.length} experiment{exps.length !== 1 ? 's' : ''}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div style={{ display: 'grid', gap: 8 }}>
+                                                        {exps.map(exp => (
+                                                            <div key={exp.id} className="flex items-center gap-10" style={{ cursor: 'pointer', padding: '6px 10px', borderRadius: 'var(--radius-xs)', background: 'var(--bg-card)' }} onClick={() => navigate(`/experiments/${exp.id}`)}>
+                                                                <span style={{ fontSize: '0.85rem' }}>{exp.type === 'Wet-lab' ? '🧫' : '💻'}</span>
+                                                                <div style={{ flex: 1 }}>
+                                                                    <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{exp.name}</div>
+                                                                    <div className="progress-bar" style={{ height: 4, marginTop: 4 }}><div className="progress-bar-fill" style={{ width: `${exp.progress}%` }} /></div>
+                                                                </div>
+                                                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a5b4fc', minWidth: 35, textAlign: 'right' }}>{exp.progress}%</span>
+                                                                <span className={`badge ${statusColors[exp.status]}`} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>{exp.status}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Experiments by Status */}
+                                {Object.entries(expByStatus).map(([status, exps]) => (
+                                    <div key={status} className="card mb-16">
+                                        <div className="flex items-center gap-8 mb-16">
+                                            <span className={`badge ${statusColors[status]}`} style={{ fontSize: '0.75rem', padding: '4px 12px' }}>{status}</span>
+                                            <span className="text-xs text-muted">{exps.length} experiment{exps.length !== 1 ? 's' : ''}</span>
+                                        </div>
+                                        <div style={{ display: 'grid', gap: 10 }}>
+                                            {exps.map(exp => (
+                                                <div key={exp.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 16, alignItems: 'center', padding: '12px 14px', background: 'var(--bg-primary)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: '1px solid var(--border-subtle)', transition: 'border-color 0.15s' }}
+                                                    onClick={() => navigate(`/experiments/${exp.id}`)}
+                                                    onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent-primary)'}
+                                                    onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-subtle)'}>
+                                                    <div>
+                                                        <div className="flex items-center gap-8 mb-4">
+                                                            <span style={{ fontSize: '1rem' }}>{exp.type === 'Wet-lab' ? '🧫' : '💻'}</span>
+                                                            <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{exp.name}</span>
+                                                            {exp.project && <span className="text-xs text-muted">• 📁 {exp.project.name}</span>}
+                                                        </div>
+                                                        <div className="flex items-center gap-8">
+                                                            <div className="progress-bar" style={{ flex: 1, maxWidth: 160, height: 5 }}><div className="progress-bar-fill" style={{ width: `${exp.progress}%` }} /></div>
+                                                            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: exp.progress >= 75 ? '#6ee7b7' : exp.progress >= 25 ? '#fbbf24' : '#a5b4fc' }}>{exp.progress}%</span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="avatar-group" style={{ justifyContent: 'flex-end' }}>
+                                                        {exp.members?.slice(0, 5).map(m => (
+                                                            <div key={m.id} className="user-avatar" style={{ background: m.avatar_color, width: 26, height: 26, fontSize: '0.6rem' }} title={m.name}>{m.name?.charAt(0)}</div>
+                                                        ))}
+                                                        {(exp.members?.length || 0) > 5 && <span className="text-xs text-muted">+{exp.members.length - 5}</span>}
+                                                        {(!exp.members || exp.members.length === 0) && <span className="text-xs text-muted" style={{ fontStyle: 'italic' }}>No team</span>}
+                                                    </div>
+                                                    <div style={{ textAlign: 'right', minWidth: 50 }}>
+                                                        <div className="text-xs text-muted">{exp.subtasks?.filter(s => s.status === 'Completed').length || 0}/{exp.subtasks?.length || 0}</div>
+                                                        <div className="text-xs text-muted" style={{ marginTop: 2 }}>tasks</div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -141,3 +259,4 @@ export default function Planner() {
         </div>
     );
 }
+
