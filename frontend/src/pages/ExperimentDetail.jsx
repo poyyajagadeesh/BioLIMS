@@ -67,6 +67,14 @@ export default function ExperimentDetail() {
         morphology_observations: '',
     });
 
+    // Dry-lab form state
+    const [editingDryLab, setEditingDryLab] = useState(false);
+    const [dryLabForm, setDryLabForm] = useState({
+        algorithm_name: '', script_version: '', git_reference: '',
+        dataset_description: '', parameters_text: '', logs: '',
+        input_files_text: '', output_files_text: '',
+    });
+
     // Quick assign protocol state
     const [showAssignProtocol, setShowAssignProtocol] = useState(false);
     const [assignProtocolId, setAssignProtocolId] = useState('');
@@ -236,6 +244,49 @@ export default function ExperimentDetail() {
         api.get('/protocols').then(res => setAllProtocols(res.data)).catch(console.error);
         setAssignProtocolId(exp.protocol_id || '');
         setShowAssignProtocol(true);
+    };
+
+    // Dry-lab handlers
+    const saveDryLab = async () => {
+        try {
+            const payload = {
+                algorithm_name: dryLabForm.algorithm_name,
+                script_version: dryLabForm.script_version,
+                git_reference: dryLabForm.git_reference,
+                dataset_description: dryLabForm.dataset_description,
+                logs: dryLabForm.logs,
+                input_files: dryLabForm.input_files_text ? dryLabForm.input_files_text.split(',').map(s => s.trim()).filter(Boolean) : [],
+                output_files: dryLabForm.output_files_text ? dryLabForm.output_files_text.split(',').map(s => s.trim()).filter(Boolean) : [],
+                parameters: {},
+            };
+            // Parse parameters from key=value lines
+            if (dryLabForm.parameters_text) {
+                dryLabForm.parameters_text.split('\n').forEach(line => {
+                    const [k, ...v] = line.split('=');
+                    if (k && v.length > 0) payload.parameters[k.trim()] = v.join('=').trim();
+                });
+            }
+            await api.put(`/experiments/${id}`, { dryLabDetail: payload });
+            setEditingDryLab(false);
+            fetchExp();
+            toast.success('Dry-lab details saved');
+        } catch (err) { toast.error(err.response?.data?.error || 'Failed to save'); }
+    };
+
+    const startEditDryLab = (existing) => {
+        if (existing) {
+            setDryLabForm({
+                algorithm_name: existing.algorithm_name || '',
+                script_version: existing.script_version || '',
+                git_reference: existing.git_reference || '',
+                dataset_description: existing.dataset_description || '',
+                logs: existing.logs || '',
+                input_files_text: (existing.input_files || []).join(', '),
+                output_files_text: (existing.output_files || []).join(', '),
+                parameters_text: existing.parameters ? Object.entries(existing.parameters).map(([k, v]) => `${k}=${v}`).join('\n') : '',
+            });
+        }
+        setEditingDryLab(true);
     };
 
     // Progress update handler
@@ -679,24 +730,63 @@ export default function ExperimentDetail() {
             )}
 
             {/* Dry-lab */}
-            {tab === 'drylab' && dry && (
+            {tab === 'drylab' && !editingDryLab && dry && (
                 <div className="card">
-                    <h3 className="mb-16">💻 Dry-Lab Details</h3>
-                    <div className="detail-grid">
-                        <div className="detail-item"><label>Algorithm</label><div className="value">{dry.algorithm_name || '—'}</div></div>
-                        <div className="detail-item"><label>Script Version</label><div className="value">{dry.script_version || '—'}</div></div>
-                        <div className="detail-item"><label>Git Reference</label><div className="value" style={{ fontFamily: 'monospace' }}>{dry.git_reference || '—'}</div></div>
+                    <div className="flex items-center justify-between mb-16">
+                        <h3>💻 Dry-Lab Details</h3>
+                        <button className="btn btn-secondary btn-sm" onClick={() => startEditDryLab(dry)}><Edit2 size={14} /> Edit</button>
                     </div>
-                    {dry.dataset_description && <div className="detail-section mt-16"><h3>📊 Dataset</h3><p className="text-secondary">{dry.dataset_description}</p></div>}
+                    <div className="detail-grid">
+                        <div className="detail-item"><label>Algorithm / Software</label><div className="value">{dry.algorithm_name || '—'}</div></div>
+                        <div className="detail-item"><label>Script Version</label><div className="value">{dry.script_version || '—'}</div></div>
+                        <div className="detail-item"><label>Git Reference / URL</label><div className="value" style={{ fontFamily: 'monospace', wordBreak: 'break-all' }}>{dry.git_reference ? (<a href={dry.git_reference.startsWith('http') ? dry.git_reference : undefined} target="_blank" rel="noreferrer" style={{ color: '#a5b4fc', textDecoration: 'none' }}>{dry.git_reference}</a>) : '—'}</div></div>
+                    </div>
+                    {dry.dataset_description && <div className="detail-section mt-16"><h3>📊 Dataset Description</h3><p className="text-secondary" style={{ whiteSpace: 'pre-wrap' }}>{dry.dataset_description}</p></div>}
                     {dry.parameters && Object.keys(dry.parameters).length > 0 && (
-                        <div className="detail-section mt-16"><h3>⚙️ Parameters</h3><div className="detail-grid">{Object.entries(dry.parameters).map(([k, v]) => <div key={k} className="detail-item"><label>{k}</label><div className="value">{String(v)}</div></div>)}</div></div>
+                        <div className="detail-section mt-16"><h3>⚙️ Parameters</h3><div className="detail-grid">{Object.entries(dry.parameters).map(([k, v]) => <div key={k} className="detail-item"><label>{k}</label><div className="value" style={{ fontFamily: 'monospace' }}>{String(v)}</div></div>)}</div></div>
                     )}
                     {dry.input_files?.length > 0 && <div className="detail-section mt-16"><h3>📥 Input Files</h3>{dry.input_files.map((f, i) => <span key={i} className="badge badge-cyan" style={{ margin: '0 4px 4px 0' }}>{f}</span>)}</div>}
                     {dry.output_files?.length > 0 && <div className="detail-section mt-16"><h3>📤 Output Files</h3>{dry.output_files.map((f, i) => <span key={i} className="badge badge-emerald" style={{ margin: '0 4px 4px 0' }}>{f}</span>)}</div>}
-                    {dry.logs && <div className="detail-section mt-16"><h3>📜 Logs</h3><pre style={{ background: 'var(--bg-primary)', padding: 14, borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>{dry.logs}</pre></div>}
+                    {dry.logs && <div className="detail-section mt-16"><h3>📜 Logs / Notes</h3><pre style={{ background: 'var(--bg-primary)', padding: 14, borderRadius: 'var(--radius-sm)', fontSize: '0.82rem', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', overflowX: 'auto' }}>{dry.logs}</pre></div>}
                 </div>
             )}
-            {tab === 'drylab' && !dry && <div className="card"><div className="empty-state"><Cpu size={32} /><p>No dry-lab details recorded yet</p></div></div>}
+            {tab === 'drylab' && !editingDryLab && !dry && (
+                <div className="card">
+                    <div className="empty-state" style={{ padding: 40 }}>
+                        <Cpu size={36} />
+                        <h3>No dry-lab details recorded yet</h3>
+                        <p>Add software versions, URLs, parameters, and dataset info for this experiment.</p>
+                        <button className="btn btn-primary mt-16" onClick={() => startEditDryLab(null)}><Plus size={14} /> Add Dry-Lab Details</button>
+                    </div>
+                </div>
+            )}
+            {tab === 'drylab' && editingDryLab && (
+                <div className="card">
+                    <div className="flex items-center justify-between mb-16">
+                        <h3>💻 {dry ? 'Edit' : 'Add'} Dry-Lab Details</h3>
+                        <div className="flex gap-8">
+                            <button className="btn btn-primary btn-sm" onClick={saveDryLab}><Save size={14} /> Save</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEditingDryLab(false)}>Cancel</button>
+                        </div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>🖥️ SOFTWARE & VERSION</div>
+                    <div className="form-row form-row-3">
+                        <div className="form-group"><label>Algorithm / Software Name</label><input className="form-control" value={dryLabForm.algorithm_name} onChange={e => setDryLabForm({ ...dryLabForm, algorithm_name: e.target.value })} placeholder="e.g. DESeq2, STAR, BWA" /></div>
+                        <div className="form-group"><label>Script / Software Version</label><input className="form-control" value={dryLabForm.script_version} onChange={e => setDryLabForm({ ...dryLabForm, script_version: e.target.value })} placeholder="e.g. v2.1.0, R 4.3.1" /></div>
+                        <div className="form-group"><label>Git Reference / URL</label><input className="form-control" value={dryLabForm.git_reference} onChange={e => setDryLabForm({ ...dryLabForm, git_reference: e.target.value })} placeholder="e.g. https://github.com/repo or commit hash" /></div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', margin: '16px 0 12px' }}>📊 DATASET & FILES</div>
+                    <div className="form-group"><label>Dataset Description</label><textarea className="form-control" value={dryLabForm.dataset_description} onChange={e => setDryLabForm({ ...dryLabForm, dataset_description: e.target.value })} rows={3} placeholder="Describe the dataset: source, size, format, preprocessing steps..." /></div>
+                    <div className="form-row form-row-2">
+                        <div className="form-group"><label>Input Files (comma-separated)</label><input className="form-control" value={dryLabForm.input_files_text} onChange={e => setDryLabForm({ ...dryLabForm, input_files_text: e.target.value })} placeholder="e.g. reads_R1.fastq.gz, reads_R2.fastq.gz" /></div>
+                        <div className="form-group"><label>Output Files (comma-separated)</label><input className="form-control" value={dryLabForm.output_files_text} onChange={e => setDryLabForm({ ...dryLabForm, output_files_text: e.target.value })} placeholder="e.g. counts.csv, results.xlsx" /></div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', margin: '16px 0 12px' }}>⚙️ PARAMETERS</div>
+                    <div className="form-group"><label>Parameters (one per line: key=value)</label><textarea className="form-control" value={dryLabForm.parameters_text} onChange={e => setDryLabForm({ ...dryLabForm, parameters_text: e.target.value })} rows={4} placeholder={"threads=8\nmin_mapq=30\ngenome=hg38\npadj_threshold=0.05"} style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} /></div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', margin: '16px 0 12px' }}>📜 LOGS & NOTES</div>
+                    <div className="form-group"><label>Logs / Execution Notes</label><textarea className="form-control" value={dryLabForm.logs} onChange={e => setDryLabForm({ ...dryLabForm, logs: e.target.value })} rows={4} placeholder="Paste run logs, execution notes, or any relevant output..." style={{ fontFamily: 'monospace', fontSize: '0.85rem' }} /></div>
+                </div>
+            )}
 
             {/* Assign Protocol Modal */}
             {showAssignProtocol && (
