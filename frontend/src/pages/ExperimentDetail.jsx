@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -50,9 +50,11 @@ export default function ExperimentDetail() {
     const [editingResults, setEditingResults] = useState(false);
     const [resultsText, setResultsText] = useState('');
 
-    // Progress update state
-    const [showProgressEdit, setShowProgressEdit] = useState(false);
-    const [progressValue, setProgressValue] = useState(0);
+    // Progress drag state
+    const [draggingProgress, setDraggingProgress] = useState(false);
+    const [hoverProgress, setHoverProgress] = useState(null);
+    const progressBarRef = useRef(null);
+    const isDragging = useRef(false);
 
     // File upload state
     const [uploading, setUploading] = useState(false);
@@ -289,14 +291,42 @@ export default function ExperimentDetail() {
         setEditingDryLab(true);
     };
 
-    // Progress update handler
-    const updateProgress = async (value) => {
-        try {
-            const res = await api.put(`/experiments/${id}/progress`, { progress: value });
-            setShowProgressEdit(false);
-            fetchExp();
-            toast.success(`Progress updated to ${res.data.progress}%`);
-        } catch (err) { toast.error(err.response?.data?.error || 'Failed to update progress'); }
+    // Progress drag handler
+    const calcProgress = useCallback((e) => {
+        if (!progressBarRef.current) return 0;
+        const rect = progressBarRef.current.getBoundingClientRect();
+        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        return Math.round((x / rect.width) * 100 / 5) * 5; // snap to 5%
+    }, []);
+
+    const handleProgressMouseDown = (e) => {
+        e.preventDefault();
+        isDragging.current = true;
+        setDraggingProgress(true);
+        setHoverProgress(calcProgress(e));
+
+        const onMove = (ev) => {
+            if (isDragging.current) setHoverProgress(calcProgress(ev));
+        };
+        const onUp = async (ev) => {
+            isDragging.current = false;
+            setDraggingProgress(false);
+            const val = calcProgress(ev);
+            setHoverProgress(null);
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            try {
+                const res = await api.put(`/experiments/${id}/progress`, { progress: val });
+                fetchExp();
+                toast.success(`Progress → ${res.data.progress}%`);
+            } catch (err) { toast.error('Failed to update progress'); }
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+    };
+
+    const handleBarHover = (e) => {
+        if (!isDragging.current) setHoverProgress(calcProgress(e));
     };
 
 
@@ -338,30 +368,29 @@ export default function ExperimentDetail() {
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, marginTop: 16 }}>
-                    <div style={{ cursor: 'pointer', position: 'relative' }} onClick={() => { setProgressValue(exp.progress || 0); setShowProgressEdit(!showProgressEdit); }}>
-                        <div className="text-xs text-muted mb-8" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>PROGRESS <TrendingUp size={10} /> <span style={{ fontSize: '0.6rem', color: 'var(--accent-primary)' }}>click to update</span></div>
-                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#a5b4fc' }}>{exp.progress}%</div>
-                        <div className="progress-bar mt-8"><div className="progress-bar-fill" style={{ width: `${exp.progress}%` }} /></div>
-                        {showProgressEdit && (
-                            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, marginTop: 8, padding: 16, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-sm)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', minWidth: 260 }}>
-                                <div className="text-xs text-muted mb-8" style={{ fontWeight: 600 }}>SET PROGRESS</div>
-                                <div className="flex gap-4 mb-12" style={{ flexWrap: 'wrap' }}>
-                                    {[0, 10, 25, 50, 75, 90, 100].map(v => (
-                                        <button key={v} className={`filter-chip ${progressValue === v ? 'active' : ''}`}
-                                            onClick={() => setProgressValue(v)}
-                                            style={{ minWidth: 36, justifyContent: 'center', fontSize: '0.75rem', padding: '4px 8px' }}>{v}%</button>
-                                    ))}
-                                </div>
-                                <input type="range" min="0" max="100" step="5" value={progressValue}
-                                    onChange={e => setProgressValue(Number(e.target.value))}
-                                    style={{ width: '100%', accentColor: '#a5b4fc', marginBottom: 8 }} />
-                                <div className="text-sm" style={{ textAlign: 'center', marginBottom: 12, fontWeight: 600, color: '#a5b4fc' }}>{progressValue}%</div>
-                                <div className="flex gap-8">
-                                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => updateProgress(progressValue)}><Save size={12} /> Save</button>
-                                    <button className="btn btn-ghost btn-sm" onClick={() => setShowProgressEdit(false)}>Cancel</button>
-                                </div>
-                            </div>
-                        )}
+                    <div style={{ position: 'relative' }}>
+                        <div className="text-xs text-muted mb-8" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>PROGRESS <TrendingUp size={10} /> <span style={{ fontSize: '0.6rem', color: 'var(--accent-primary)', opacity: 0.7 }}>drag to set</span></div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: draggingProgress ? '#818cf8' : '#a5b4fc', transition: 'color 0.15s' }}>
+                            {hoverProgress !== null ? hoverProgress : exp.progress}%
+                        </div>
+                        <div
+                            ref={progressBarRef}
+                            onMouseDown={handleProgressMouseDown}
+                            onMouseMove={handleBarHover}
+                            onMouseLeave={() => { if (!isDragging.current) setHoverProgress(null); }}
+                            style={{ position: 'relative', height: 14, background: 'var(--bg-tertiary)', borderRadius: 10, marginTop: 8, cursor: 'pointer', overflow: 'hidden', transition: 'height 0.15s' }}
+                        >
+                            {/* Actual progress */}
+                            <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${exp.progress}%`, background: 'var(--gradient-primary)', borderRadius: 10, transition: draggingProgress ? 'none' : 'width 0.3s', opacity: hoverProgress !== null ? 0.3 : 1 }} />
+                            {/* Hover/drag preview */}
+                            {hoverProgress !== null && (
+                                <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${hoverProgress}%`, background: hoverProgress >= 75 ? 'linear-gradient(90deg, #10b981, #34d399)' : hoverProgress >= 25 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'var(--gradient-primary)', borderRadius: 10, transition: draggingProgress ? 'none' : 'width 0.1s' }} />
+                            )}
+                            {/* Drag handle indicator */}
+                            {hoverProgress !== null && (
+                                <div style={{ position: 'absolute', top: -1, left: `${hoverProgress}%`, transform: 'translateX(-50%)', width: 4, height: 16, background: '#fff', borderRadius: 4, boxShadow: '0 0 6px rgba(99,102,241,0.6)' }} />
+                            )}
+                        </div>
                     </div>
                     <div><div className="text-xs text-muted mb-8">SUBTASKS</div><div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{exp.subtasks?.filter(s => s.status === 'Completed').length || 0}/{exp.subtasks?.length || 0}</div></div>
                     <div><div className="text-xs text-muted mb-8">TEAM</div><div className="avatar-group">{exp.members?.map(m => <div key={m.id} className="user-avatar" style={{ background: m.avatar_color }} title={m.name}>{m.name?.charAt(0)}</div>)}</div></div>
