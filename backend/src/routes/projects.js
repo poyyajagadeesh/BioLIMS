@@ -14,11 +14,32 @@ router.get('/', auth, async (req, res) => {
             where,
             include: [
                 { model: User, as: 'members', through: { attributes: ['role'] } },
-                { model: Experiment, as: 'experiments', attributes: ['id', 'name', 'status', 'progress', 'type'] },
+                {
+                    model: Experiment, as: 'experiments', attributes: ['id', 'name', 'status', 'progress', 'type'],
+                    include: [
+                        { model: User, as: 'members', through: { attributes: [] }, attributes: ['id', 'name', 'avatar_color', 'role'] },
+                    ],
+                },
             ],
             order: [['updated_at', 'DESC']],
         });
-        res.json(projects);
+
+        // Merge experiment members into each project's team
+        const results = projects.map(p => {
+            const pj = p.toJSON();
+            const memberIds = new Set(pj.members.map(m => m.id));
+            for (const exp of pj.experiments || []) {
+                for (const m of exp.members || []) {
+                    if (!memberIds.has(m.id)) {
+                        memberIds.add(m.id);
+                        pj.members.push({ ...m, ProjectMember: { role: 'Experiment Member' } });
+                    }
+                }
+            }
+            return pj;
+        });
+
+        res.json(results);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -33,14 +54,29 @@ router.get('/:id', auth, async (req, res) => {
                 {
                     model: Experiment, as: 'experiments',
                     include: [
-                        { model: User, as: 'members', through: { attributes: [] }, attributes: ['id', 'name', 'avatar_color'] },
+                        { model: User, as: 'members', through: { attributes: [] }, attributes: ['id', 'name', 'avatar_color', 'role', 'email', 'expertise'] },
                         { model: Subtask, as: 'subtasks' },
                     ]
                 },
             ],
         });
         if (!project) return res.status(404).json({ error: 'Project not found' });
-        res.json(project);
+
+        // Merge experiment members into project team (deduplicated)
+        const result = project.toJSON();
+        const projectMemberIds = new Set(result.members.map(m => m.id));
+        const experimentMembers = [];
+        for (const exp of result.experiments || []) {
+            for (const m of exp.members || []) {
+                if (!projectMemberIds.has(m.id)) {
+                    projectMemberIds.add(m.id);
+                    experimentMembers.push({ ...m, ProjectMember: { role: 'Experiment Member' } });
+                }
+            }
+        }
+        result.members = [...result.members, ...experimentMembers];
+
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

@@ -66,6 +66,25 @@ async function start() {
     try {
         await sequelize.sync();
         console.log('✅ Database synced');
+
+        // Add missing columns to existing tables (safe: ALTER TABLE ADD COLUMN is a no-op if column exists in SQLite via try/catch)
+        const addCol = async (table, col, type, dflt) => {
+            try {
+                const defaultClause = dflt !== undefined ? ` DEFAULT ${typeof dflt === 'string' ? `'${dflt}'` : dflt}` : '';
+                await sequelize.query(`ALTER TABLE "${table}" ADD COLUMN "${col}" ${type}${defaultClause};`);
+                console.log(`  ➕ Added ${table}.${col}`);
+            } catch (e) { /* column already exists — ignore */ }
+        };
+
+        await addCol('projects', 'visibility', 'VARCHAR(255)', 'public');
+        await addCol('experiments', 'visibility', 'VARCHAR(255)', 'public');
+        await addCol('experiments', 'results_outcome', 'TEXT');
+        await addCol('experiments', 'references', 'TEXT', '[]');
+        await addCol('protocols', 'last_edited_by', 'VARCHAR(36)');
+        await addCol('protocols', 'last_edited_at', 'DATETIME');
+        await addCol('protocols', 'edit_history', 'TEXT', '[]');
+        await addCol('protocols', 'visibility', 'VARCHAR(255)', 'public');
+        await addCol('manuscripts', 'visibility', 'VARCHAR(255)', 'public');
         await ensureAdmin();
         app.listen(PORT, () => {
             console.log(`🧬 LIMS Server running on port ${PORT}`);

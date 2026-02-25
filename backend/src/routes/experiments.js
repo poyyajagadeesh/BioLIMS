@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Experiment, User, Project, Subtask, WetLabDetail, DryLabDetail, Protocol, ActivityLog, ExperimentMember, FileAttachment } = require('../models');
+const { Experiment, User, Project, Subtask, WetLabDetail, DryLabDetail, Protocol, ActivityLog, ExperimentMember, ProjectMember, FileAttachment } = require('../models');
 const { auth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
@@ -9,6 +9,17 @@ async function recalcProgress(experimentId) {
     if (subtasks.length === 0) return 0;
     const completed = subtasks.filter(s => s.status === 'Completed').length;
     return Math.round((completed / subtasks.length) * 100);
+}
+
+// Helper: auto-add experiment members to the parent project
+async function syncMembersToProject(projectId, memberIds) {
+    if (!projectId || !memberIds || memberIds.length === 0) return;
+    for (const uid of memberIds) {
+        const exists = await ProjectMember.findOne({ where: { project_id: projectId, user_id: uid } });
+        if (!exists) {
+            await ProjectMember.create({ project_id: projectId, user_id: uid, role: 'Member' });
+        }
+    }
 }
 
 // GET /api/experiments
@@ -85,6 +96,8 @@ router.post('/', auth, async (req, res) => {
             for (const uid of member_ids) {
                 await ExperimentMember.create({ experiment_id: experiment.id, user_id: uid });
             }
+            // Auto-add experiment members to the parent project
+            await syncMembersToProject(project_id, member_ids);
         }
 
         if (subtasks && subtasks.length > 0) {
@@ -145,6 +158,9 @@ router.put('/:id', auth, async (req, res) => {
             for (const uid of member_ids) {
                 await ExperimentMember.create({ experiment_id: experiment.id, user_id: uid });
             }
+            // Auto-add experiment members to the parent project
+            const effectiveProjectId = project_id !== undefined ? project_id : experiment.project_id;
+            await syncMembersToProject(effectiveProjectId, member_ids);
         }
 
         if (wetLabDetail) {
