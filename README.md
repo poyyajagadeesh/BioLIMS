@@ -1,238 +1,117 @@
 # 🧬 BioLIMS — Lab Information & Experiment Management System
 
-A full-stack web application for managing biomedical research lab projects, experiments, protocols, and daily workflows. Built for both **wet-lab** and **dry-lab** research teams.
+A full-stack web application for managing biomedical research projects, experiments, protocols, and lab workflows. Supports both wet-lab and dry-lab tracking.
 
-![Node.js](https://img.shields.io/badge/Node.js-v18+-green?logo=node.js)
-![React](https://img.shields.io/badge/React-18-blue?logo=react)
-![SQLite](https://img.shields.io/badge/SQLite-3-003B57?logo=sqlite)
-![License](https://img.shields.io/badge/License-MIT-yellow)
+## Tech Stack
 
----
+- **Frontend**: React 18 + Vite + Recharts + Lucide Icons
+- **Backend**: Express.js + Sequelize ORM + SQLite
+- **Auth**: JWT-based authentication with bcrypt password hashing
 
-## ✨ Features
+## Features
 
-### 📊 Dashboard
-- Real-time lab overview with stats, active experiments, reminders, and team progress
-- Quick-action buttons for creating projects, experiments, and protocols
+- 📊 Interactive dashboard with project/experiment analytics
+- 📁 Project management with team member assignments
+- 🧪 Experiment tracking (Wet-lab, Dry-lab, Computational)
+- 📋 Protocol/SOP management with versioning
+- 📅 Daily planner with check-in/check-out
+- 🔔 Reminder system with priority levels
+- 📎 File attachment management
+- 📝 Activity logging
+- 👥 Team member management with roles (Admin, PI, Senior, Researcher, Student)
 
-### 📁 Project Management
-- Create & track multi-experiment research projects
-- Assign team members, set timelines, and monitor progress
-- Status tracking: Planning → Active → Completed → Archived
-
-### 🧪 Experiment Tracking
-- **Wet-lab**: Cell culture details (cell line, media, passage, treatment, incubation)
-- **Dry-lab**: Algorithm, dataset, scripts, git references, parameters, logs
-- Subtask management with per-experiment progress calculation
-- Link experiments to projects and protocols
-
-### 📋 Protocols & SOPs
-- Categorized protocol library (Cell Culture, Western Blot, qPCR, NGS, Bioinformatics, etc.)
-- Version tracking and experiment linkage
-
-### 📅 Daily Planner
-- Schedule daily lab tasks with check-in/check-out times
-- Link tasks to experiments and assign to team members
-- Drag-and-drop reordering
-
-### 🔔 Reminders
-- Time-based reminders for incubation, passage, treatment, and custom events
-- Priority levels (Low → Critical) with overdue tracking
-- Filter by today, 24h, week, or overdue
-
-### 👥 Lab Members
-- Role-based access (Admin, PI, Senior, Researcher, Student)
-- Member profiles with expertise tags and workload overview
-
-### 📎 File Repository
-- Upload and organize research files (up to 50MB)
-- Tag-based organization with entity linking
-- Download and delete capabilities
-
-### 📝 Activity Log
-- Full audit trail of all actions across the system
-
----
-
-## 🛠 Tech Stack
-
-| Layer      | Technology                         |
-|------------|-------------------------------------|
-| **Frontend** | React 18, Vite, React Router, Recharts, Lucide Icons |
-| **Backend**  | Node.js, Express, Sequelize ORM    |
-| **Database** | SQLite                              |
-| **Auth**     | JWT (JSON Web Tokens) + bcrypt      |
-| **Styling**  | Custom CSS (Premium dark theme)     |
-
----
-
-## 🚀 Quick Start
+## Local Development
 
 ### Prerequisites
-- **Node.js** v18+ and **npm**
 
-### 1. Clone the repository
+- Node.js >= 18
+
+### Setup
+
 ```bash
-git clone https://github.com/<your-username>/mTracker.git
-cd mTracker
-```
+# Install all dependencies
+npm run build
 
-### 2. Install dependencies
-```bash
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd ../frontend
-npm install
-```
-
-### 3. Set up environment
-```bash
-# backend/.env (already included with defaults)
-PORT=5000
-JWT_SECRET=lims-jwt-secret-change-in-production-2024
-DB_PATH=./data/lims.db
-UPLOAD_DIR=./uploads
-```
-
-### 4. Seed the database (optional)
-```bash
-cd backend
-npm run seed
-```
-
-This creates sample data with the following login credentials:
-
-| Role       | Email              | Password      |
-|------------|-------------------|---------------|
-| Admin      | admin@lab.org      | password123   |
-| PI         | priya@lab.org      | password123   |
-| Senior     | rahul@lab.org      | password123   |
-| Researcher | ananya@lab.org     | password123   |
-| Student    | meera@lab.org      | password123   |
-
-### 5. Start the application
-```bash
-# Terminal 1 — Backend
-cd backend
+# Start the backend server (serves frontend in production mode)
 npm start
 
-# Terminal 2 — Frontend
-cd frontend
-npm run dev
+# Or for development with hot reload:
+cd backend && npm run dev     # Terminal 1
+cd frontend && npm run dev    # Terminal 2
 ```
 
-Open **http://localhost:5173** in your browser.
+### Default Admin Account
 
----
+- **Email**: poyyaj@biolims.app
+- **Password**: Set via `ADMIN_PASSWORD` environment variable
 
-## 📂 Project Structure
+The admin account is auto-created on first server start if no users exist.
+
+## Deploying to Render.com
+
+### Option 1: Blueprint (Recommended)
+
+1. Push code to GitHub
+2. Go to [Render Dashboard](https://dashboard.render.com)
+3. Click **New** → **Blueprint**
+4. Connect your GitHub repo
+5. Render will auto-detect `render.yaml` and configure everything
+6. **Set the `ADMIN_PASSWORD` environment variable** in the Render dashboard to your desired password
+
+### Option 2: Manual Setup
+
+1. Create a **Web Service** on Render
+2. Connect your GitHub repository
+3. Configure:
+   - **Build Command**: `npm run build`
+   - **Start Command**: `npm start`
+4. Add environment variables:
+   - `NODE_ENV` = `production`
+   - `JWT_SECRET` = (generate a random secret)
+   - `ADMIN_PASSWORD` = (your admin password)
+   - `DB_PATH` = `/opt/render/project/data/lims.db`
+5. Add a **Disk** (1 GB) mounted at `/opt/render/project/data`
+
+> ⚠️ **Important**: SQLite requires a persistent disk. Without it, your data will be lost on every deploy.
+
+## Environment Variables
+
+| Variable | Description | Default |
+|---|---|---|
+| `PORT` | Server port | `5000` |
+| `JWT_SECRET` | JWT signing secret | (required in production) |
+| `DB_PATH` | SQLite database file path | `./data/lims.db` |
+| `UPLOAD_DIR` | File upload directory | `./uploads` |
+| `ADMIN_PASSWORD` | Initial admin password | `changeme` |
+| `NODE_ENV` | Environment mode | `development` |
+
+## Project Structure
 
 ```
 mTracker/
 ├── backend/
-│   ├── .env                  # Environment config
-│   ├── package.json
-│   └── src/
-│       ├── server.js         # Express server entry point
-│       ├── db.js             # SQLite/Sequelize connection
-│       ├── seed.js           # Sample data seeder
-│       ├── middleware/
-│       │   └── auth.js       # JWT auth & role middleware
-│       ├── models/
-│       │   └── index.js      # All Sequelize models & associations
-│       └── routes/
-│           ├── auth.js       # Register, login, me
-│           ├── projects.js   # Project CRUD
-│           ├── experiments.js# Experiment CRUD + subtasks
-│           ├── protocols.js  # Protocol CRUD
-│           ├── members.js    # Member CRUD + workload
-│           ├── reminders.js  # Reminder CRUD + completion
-│           ├── planner.js    # Daily task CRUD + check-in/out
-│           ├── files.js      # File upload/download
-│           ├── dashboard.js  # Aggregated dashboard stats
-│           └── activity.js   # Activity log
-│
+│   ├── src/
+│   │   ├── server.js       # Express app + auto-seed
+│   │   ├── db.js            # Sequelize config
+│   │   ├── seed.js          # Database seeder
+│   │   ├── models/          # Sequelize models
+│   │   ├── routes/          # API routes
+│   │   └── middleware/      # Auth middleware
+│   └── package.json
 ├── frontend/
-│   ├── index.html
+│   ├── src/
+│   │   ├── App.jsx          # Router setup
+│   │   ├── api.js           # Axios config
+│   │   ├── components/      # Shared UI components
+│   │   ├── context/         # Auth context
+│   │   └── pages/           # Page components
 │   ├── vite.config.js
-│   ├── package.json
-│   └── src/
-│       ├── main.jsx          # React entry point
-│       ├── App.jsx           # Routes & protected routes
-│       ├── api.js            # Axios API client
-│       ├── index.css         # Full design system (1400+ lines)
-│       ├── context/
-│       │   └── AuthContext.jsx
-│       ├── components/
-│       │   ├── Layout.jsx
-│       │   └── Sidebar.jsx
-│       └── pages/
-│           ├── Dashboard.jsx
-│           ├── Projects.jsx
-│           ├── ProjectDetail.jsx
-│           ├── Experiments.jsx
-│           ├── ExperimentDetail.jsx
-│           ├── Members.jsx
-│           ├── Protocols.jsx
-│           ├── Planner.jsx
-│           ├── Reminders.jsx
-│           ├── Files.jsx
-│           ├── Activity.jsx
-│           └── Login.jsx
-│
-└── README.md
+│   └── package.json
+├── render.yaml              # Render blueprint
+├── package.json             # Root build scripts
+└── .gitignore
 ```
 
----
+## License
 
-## 🔑 API Endpoints
-
-| Method  | Endpoint                          | Description              |
-|---------|-----------------------------------|--------------------------|
-| POST    | `/api/auth/register`              | Register new user        |
-| POST    | `/api/auth/login`                 | Login                    |
-| GET     | `/api/auth/me`                    | Get current user         |
-| GET/POST/PUT/DELETE | `/api/projects`       | Project management       |
-| GET/POST/PUT/DELETE | `/api/experiments`    | Experiment management    |
-| POST    | `/api/experiments/:id/subtasks`   | Add subtask              |
-| GET/POST/PUT/DELETE | `/api/protocols`      | Protocol management      |
-| GET/PUT/DELETE      | `/api/members`        | Member management        |
-| GET/POST/PUT/DELETE | `/api/reminders`      | Reminder management      |
-| GET/POST/PUT/DELETE | `/api/planner`        | Daily planner            |
-| POST    | `/api/files/upload`               | Upload file              |
-| GET     | `/api/files/:id/download`         | Download file            |
-| GET     | `/api/dashboard`                  | Dashboard aggregation    |
-| GET     | `/api/activity`                   | Activity log             |
-
----
-
-## � Git Push to GitHub
-
-### First-time setup
-```bash
-cd /home/ribsbioinfo/mTracker
-
-# Add your GitHub remote
-git remote add origin https://github.com/<your-username>/mTracker.git
-
-# Push to GitHub
-git push -u origin main
-```
-
-### For subsequent pushes
-```bash
-git add -A
-git commit -m "your commit message"
-git push
-```
-
-> **Note:** Make sure you have created an empty repository on GitHub first (without README or .gitignore) before pushing.
-
----
-
-## �📄 License
-
-MIT License — free to use and modify for your lab.
+Private — All rights reserved.

@@ -2,7 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { sequelize } = require('./models');
+const bcrypt = require('bcryptjs');
+const { sequelize, User } = require('./models');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -36,13 +37,36 @@ if (process.env.NODE_ENV === 'production') {
 // Health check
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 
+// Auto-seed admin on first run if no users exist
+async function ensureAdmin() {
+    try {
+        const count = await User.count();
+        if (count === 0) {
+            console.log('🌱 No users found — creating admin account...');
+            const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'changeme', 12);
+            await User.create({
+                name: 'poyyaj',
+                email: 'poyyaj@biolims.app',
+                password: hash,
+                role: 'Admin',
+                expertise: ['Administration', 'Lab Management'],
+                avatar_color: '#6366f1',
+            });
+            console.log('✅ Admin account created (poyyaj@biolims.app)');
+        }
+    } catch (err) {
+        console.error('⚠️  Could not auto-seed admin:', err.message);
+    }
+}
+
 // Start server
 async function start() {
     try {
         await sequelize.sync();
         console.log('✅ Database synced');
+        await ensureAdmin();
         app.listen(PORT, () => {
-            console.log(`🧬 LIMS Server running on http://localhost:${PORT}`);
+            console.log(`🧬 LIMS Server running on port ${PORT}`);
         });
     } catch (err) {
         console.error('❌ Failed to start:', err);

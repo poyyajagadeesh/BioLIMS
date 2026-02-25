@@ -51,8 +51,7 @@ export default function Login() {
                 </form>
 
                 <div style={{ marginTop: 24, textAlign: 'center' }}>
-                    <p className="text-xs text-muted">Demo credentials:</p>
-                    <p className="text-xs text-muted">admin@lab.org / password123</p>
+                    <p className="text-xs text-muted">Lab Information &amp; Experiment Management System</p>
                 </div>
             </div>
         </div>
