@@ -24,6 +24,7 @@ const Project = sequelize.define('Project', {
     end_date: { type: DataTypes.DATEONLY },
     progress: { type: DataTypes.FLOAT, defaultValue: 0 },
     color: { type: DataTypes.STRING, defaultValue: '#6366f1' },
+    visibility: { type: DataTypes.ENUM('public', 'restricted', 'private'), defaultValue: 'public' },
     tags: { type: DataTypes.JSON, defaultValue: [] },
 });
 
@@ -31,15 +32,18 @@ const Project = sequelize.define('Project', {
 const Experiment = sequelize.define('Experiment', {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
     name: { type: DataTypes.STRING, allowNull: false },
-    type: { type: DataTypes.ENUM('Wet-lab', 'Dry-lab', 'Computational'), defaultValue: 'Wet-lab' },
+    type: { type: DataTypes.ENUM('Wet-lab', 'Dry-lab'), defaultValue: 'Wet-lab' },
     status: { type: DataTypes.ENUM('Planned', 'In Progress', 'Paused', 'Completed', 'Failed'), defaultValue: 'Planned' },
     start_date: { type: DataTypes.DATEONLY },
     end_date: { type: DataTypes.DATEONLY },
     progress: { type: DataTypes.FLOAT, defaultValue: 0 },
     notes: { type: DataTypes.TEXT },
     observations: { type: DataTypes.TEXT },
+    results_outcome: { type: DataTypes.TEXT },  // Results or Outcome section
+    references: { type: DataTypes.JSON, defaultValue: [] }, // Array of { title, authors, journal, year, doi, url }
     protocol_id: { type: DataTypes.UUID },
     project_id: { type: DataTypes.UUID },
+    visibility: { type: DataTypes.ENUM('public', 'restricted', 'private'), defaultValue: 'public' },
 });
 
 /* ───────────── WET LAB DETAILS ───────────── */
@@ -102,6 +106,7 @@ const Protocol = sequelize.define('Protocol', {
     file_path: { type: DataTypes.STRING },
     created_by: { type: DataTypes.UUID },
     tags: { type: DataTypes.JSON, defaultValue: [] },
+    visibility: { type: DataTypes.ENUM('public', 'restricted', 'private'), defaultValue: 'public' },
 });
 
 /* ───────────── REMINDER ───────────── */
@@ -126,7 +131,7 @@ const FileAttachment = sequelize.define('FileAttachment', {
     mime_type: { type: DataTypes.STRING },
     size: { type: DataTypes.INTEGER },
     path: { type: DataTypes.STRING, allowNull: false },
-    entity_type: { type: DataTypes.ENUM('project', 'experiment', 'protocol', 'general'), defaultValue: 'general' },
+    entity_type: { type: DataTypes.ENUM('project', 'experiment', 'protocol', 'manuscript', 'raw_data', 'result', 'general'), defaultValue: 'general' },
     entity_id: { type: DataTypes.UUID },
     uploaded_by: { type: DataTypes.UUID },
     tags: { type: DataTypes.JSON, defaultValue: [] },
@@ -159,6 +164,39 @@ const ActivityLog = sequelize.define('ActivityLog', {
     ip_address: { type: DataTypes.STRING },
 });
 
+/* ───────────── MANUSCRIPT ───────────── */
+const Manuscript = sequelize.define('Manuscript', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    title: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT },
+    status: { type: DataTypes.ENUM('Idea', 'Outlining', 'Drafting', 'Internal Review', 'Revision', 'Submitted', 'Under Review', 'Accepted', 'Published'), defaultValue: 'Idea' },
+    target_journal: { type: DataTypes.STRING },
+    submission_deadline: { type: DataTypes.DATEONLY },
+    submitted_date: { type: DataTypes.DATEONLY },
+    accepted_date: { type: DataTypes.DATEONLY },
+    doi: { type: DataTypes.STRING },
+    abstract: { type: DataTypes.TEXT },
+    keywords: { type: DataTypes.JSON, defaultValue: [] },
+    notes: { type: DataTypes.TEXT },
+    project_id: { type: DataTypes.UUID },
+    created_by: { type: DataTypes.UUID },
+    progress: { type: DataTypes.FLOAT, defaultValue: 0 },
+    visibility: { type: DataTypes.ENUM('public', 'restricted', 'private'), defaultValue: 'public' },
+});
+
+/* ───────────── MANUSCRIPT TASKS ───────────── */
+const ManuscriptTask = sequelize.define('ManuscriptTask', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    manuscript_id: { type: DataTypes.UUID, allowNull: false },
+    title: { type: DataTypes.STRING, allowNull: false },
+    description: { type: DataTypes.TEXT },
+    section: { type: DataTypes.ENUM('Introduction', 'Methods', 'Results', 'Discussion', 'References', 'Figures', 'Supplementary', 'Other'), defaultValue: 'Other' },
+    status: { type: DataTypes.ENUM('Pending', 'In Progress', 'Completed'), defaultValue: 'Pending' },
+    assigned_to: { type: DataTypes.UUID },
+    due_date: { type: DataTypes.DATEONLY },
+    order: { type: DataTypes.INTEGER, defaultValue: 0 },
+});
+
 /* ───────────── ASSOCIATIONS ───────────── */
 
 // Project <-> User (many-to-many)
@@ -181,6 +219,18 @@ const ExperimentMember = sequelize.define('ExperimentMember', {
 
 Experiment.belongsToMany(User, { through: ExperimentMember, foreignKey: 'experiment_id', as: 'members' });
 User.belongsToMany(Experiment, { through: ExperimentMember, foreignKey: 'user_id', as: 'experiments' });
+
+// Manuscript <-> User (many-to-many for co-authors)
+const ManuscriptAuthor = sequelize.define('ManuscriptAuthor', {
+    id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
+    manuscript_id: { type: DataTypes.UUID },
+    user_id: { type: DataTypes.UUID },
+    author_order: { type: DataTypes.INTEGER, defaultValue: 0 },
+    is_corresponding: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { timestamps: true });
+
+Manuscript.belongsToMany(User, { through: ManuscriptAuthor, foreignKey: 'manuscript_id', as: 'authors' });
+User.belongsToMany(Manuscript, { through: ManuscriptAuthor, foreignKey: 'user_id', as: 'manuscripts' });
 
 // Project -> Experiments
 Project.hasMany(Experiment, { foreignKey: 'project_id', as: 'experiments' });
@@ -224,6 +274,23 @@ Protocol.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 // Subtask -> User (assigned)
 Subtask.belongsTo(User, { foreignKey: 'assigned_to', as: 'assignee' });
 
+// Manuscript -> Project
+Project.hasMany(Manuscript, { foreignKey: 'project_id', as: 'manuscripts' });
+Manuscript.belongsTo(Project, { foreignKey: 'project_id', as: 'project' });
+
+// Manuscript -> User (creator)
+Manuscript.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+
+// Manuscript -> Tasks
+Manuscript.hasMany(ManuscriptTask, { foreignKey: 'manuscript_id', as: 'tasks' });
+ManuscriptTask.belongsTo(Manuscript, { foreignKey: 'manuscript_id', as: 'manuscript' });
+
+// ManuscriptTask -> User (assigned)
+ManuscriptTask.belongsTo(User, { foreignKey: 'assigned_to', as: 'assignee' });
+
+// Experiment -> FileAttachments (raw data & results)
+Experiment.hasMany(FileAttachment, { foreignKey: 'entity_id', as: 'files', constraints: false, scope: { entity_type: ['experiment', 'raw_data', 'result'] } });
+
 module.exports = {
     sequelize,
     User,
@@ -239,4 +306,7 @@ module.exports = {
     ActivityLog,
     ProjectMember,
     ExperimentMember,
+    Manuscript,
+    ManuscriptTask,
+    ManuscriptAuthor,
 };

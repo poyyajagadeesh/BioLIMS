@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import toast from 'react-hot-toast';
-import { Plus, Search, FlaskConical, X, Beaker, Cpu } from 'lucide-react';
+import { Plus, Search, FlaskConical, X, Beaker, Cpu, Shield, Lock, EyeOff, Eye } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 const statusColors = {
     'Planned': 'status-planned', 'In Progress': 'status-in-progress', 'Paused': 'status-paused',
@@ -19,8 +20,10 @@ export default function Experiments() {
     const [typeFilter, setTypeFilter] = useState('all');
     const [search, setSearch] = useState('');
     const [showModal, setShowModal] = useState(false);
-    const [form, setForm] = useState({ name: '', type: 'Wet-lab', status: 'Planned', start_date: '', end_date: '', notes: '', project_id: '', protocol_id: '', member_ids: [] });
+    const [form, setForm] = useState({ name: '', type: 'Wet-lab', status: 'Planned', start_date: '', end_date: '', notes: '', project_id: '', protocol_id: '', visibility: 'public', member_ids: [] });
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'Admin' || user?.role === 'PI';
 
     const fetchData = () => {
         Promise.all([
@@ -37,7 +40,7 @@ export default function Experiments() {
             const res = await api.post('/experiments', form);
             setExperiments(prev => [res.data, ...prev]);
             setShowModal(false);
-            setForm({ name: '', type: 'Wet-lab', status: 'Planned', start_date: '', end_date: '', notes: '', project_id: '', protocol_id: '', member_ids: [] });
+            setForm({ name: '', type: 'Wet-lab', status: 'Planned', start_date: '', end_date: '', notes: '', project_id: '', protocol_id: '', visibility: 'public', member_ids: [] });
             toast.success('Experiment created');
         } catch (err) {
             toast.error(err.response?.data?.error || 'Failed to create');
@@ -67,9 +70,9 @@ export default function Experiments() {
                     <button key={s} className={`filter-chip ${filter === s ? 'active' : ''}`} onClick={() => setFilter(s)}>{s === 'all' ? 'All Status' : s}</button>
                 ))}
                 <div style={{ borderLeft: '1px solid var(--border-subtle)', height: 24, margin: '0 4px' }}></div>
-                {['all', 'Wet-lab', 'Dry-lab', 'Computational'].map(t => (
+                {['all', 'Wet-lab', 'Dry-lab'].map(t => (
                     <button key={t} className={`filter-chip ${typeFilter === t ? 'active' : ''}`} onClick={() => setTypeFilter(t)}>
-                        {t === 'all' ? 'All Types' : t === 'Wet-lab' ? '🧫 Wet-lab' : t === 'Dry-lab' ? '💻 Dry-lab' : '🖥️ Computational'}
+                        {t === 'all' ? 'All Types' : t === 'Wet-lab' ? '🧫 Wet-lab' : '💻 Dry-lab'}
                     </button>
                 ))}
             </div>
@@ -82,13 +85,20 @@ export default function Experiments() {
                 <div className="card-grid card-grid-3">
                     {experiments.map(exp => (
                         <div key={exp.id} className="experiment-card" onClick={() => navigate(`/experiments/${exp.id}`)}>
-                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: exp.type === 'Wet-lab' ? 'var(--gradient-success)' : exp.type === 'Dry-lab' ? 'var(--gradient-cool)' : 'var(--gradient-primary)' }} />
+                            <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: exp.type === 'Wet-lab' ? 'var(--gradient-success)' : 'var(--gradient-cool)' }} />
                             <div className="flex items-center justify-between mb-8">
-                                <span className="exp-type" style={{ color: exp.type === 'Wet-lab' ? '#6ee7b7' : exp.type === 'Dry-lab' ? '#67e8f9' : '#a5b4fc' }}>
-                                    {exp.type === 'Wet-lab' ? '🧫' : exp.type === 'Dry-lab' ? '💻' : '🖥️'} {exp.type}
+                                <span className="exp-type" style={{ color: exp.type === 'Wet-lab' ? '#6ee7b7' : '#67e8f9' }}>
+                                    {exp.type === 'Wet-lab' ? '🧫' : '💻'} {exp.type}
                                 </span>
                                 <span className={`badge ${statusColors[exp.status]}`}>{exp.status}</span>
                             </div>
+                            {exp.visibility && exp.visibility !== 'public' && (
+                                <div style={{ marginBottom: 4 }}>
+                                    <span className="badge" style={{ background: exp.visibility === 'private' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)', color: exp.visibility === 'private' ? '#fca5a5' : '#fcd34d', fontSize: '0.6rem', padding: '1px 6px' }}>
+                                        {exp.visibility === 'private' ? <Lock size={8} /> : <EyeOff size={8} />} {exp.visibility}
+                                    </span>
+                                </div>
+                            )}
                             <h4>{exp.name}</h4>
                             {exp.project && <p className="exp-project">📁 {exp.project.name}</p>}
                             {exp.protocol && <p className="text-xs text-muted">📋 {exp.protocol.name}</p>}
@@ -123,7 +133,7 @@ export default function Experiments() {
                                     <div className="form-group">
                                         <label>Type</label>
                                         <select className="form-control" value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
-                                            <option>Wet-lab</option><option>Dry-lab</option><option>Computational</option>
+                                            <option>Wet-lab</option><option>Dry-lab</option>
                                         </select>
                                     </div>
                                     <div className="form-group">
@@ -152,6 +162,16 @@ export default function Experiments() {
                                     </div>
                                 </div>
                                 <div className="form-group"><label>Notes</label><textarea className="form-control" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} rows={2} placeholder="Experiment notes..." /></div>
+                                {isAdmin && (
+                                    <div className="form-group">
+                                        <label><Shield size={14} style={{ verticalAlign: 'middle' }} /> Access Control</label>
+                                        <select className="form-control" value={form.visibility} onChange={e => setForm({ ...form, visibility: e.target.value })}>
+                                            <option value="public">🌐 Public — All members can view</option>
+                                            <option value="restricted">👥 Restricted — Assigned members only</option>
+                                            <option value="private">🔒 Private — Admin/PI only</option>
+                                        </select>
+                                    </div>
+                                )}
                                 <div className="form-group">
                                     <label>Assigned Members</label>
                                     <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>

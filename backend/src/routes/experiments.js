@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Experiment, User, Project, Subtask, WetLabDetail, DryLabDetail, Protocol, ActivityLog, ExperimentMember } = require('../models');
+const { Experiment, User, Project, Subtask, WetLabDetail, DryLabDetail, Protocol, ActivityLog, ExperimentMember, FileAttachment } = require('../models');
 const { auth } = require('../middleware/auth');
 const { Op } = require('sequelize');
 
@@ -30,7 +30,17 @@ router.get('/', auth, async (req, res) => {
             ],
             order: [['updated_at', 'DESC']],
         });
-        res.json(experiments);
+
+        // Filter by visibility for non-admin users
+        const isAdmin = req.user.role === 'Admin' || req.user.role === 'PI';
+        const filtered = isAdmin ? experiments : experiments.filter(exp => {
+            if (exp.visibility === 'public') return true;
+            if (exp.visibility === 'private') return false;
+            // restricted: only assigned members
+            return exp.members?.some(m => m.id === req.user.id);
+        });
+
+        res.json(filtered);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -50,7 +60,16 @@ router.get('/:id', auth, async (req, res) => {
             ],
         });
         if (!experiment) return res.status(404).json({ error: 'Experiment not found' });
-        res.json(experiment);
+
+        // Get files associated with this experiment
+        const files = await FileAttachment.findAll({
+            where: { entity_id: experiment.id, entity_type: { [Op.in]: ['experiment', 'raw_data', 'result'] } },
+            order: [['created_at', 'DESC']],
+        });
+
+        const result = experiment.toJSON();
+        result.files = files;
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -59,8 +78,8 @@ router.get('/:id', auth, async (req, res) => {
 // POST /api/experiments
 router.post('/', auth, async (req, res) => {
     try {
-        const { name, type, status, start_date, end_date, notes, observations, protocol_id, project_id, member_ids, subtasks, wetLabDetail, dryLabDetail } = req.body;
-        const experiment = await Experiment.create({ name, type, status, start_date, end_date, notes, observations, protocol_id, project_id });
+        const { name, type, status, start_date, end_date, notes, observations, results_outcome, references, protocol_id, project_id, visibility, member_ids, subtasks, wetLabDetail, dryLabDetail } = req.body;
+        const experiment = await Experiment.create({ name, type, status, start_date, end_date, notes, observations, results_outcome, references, protocol_id, project_id, visibility });
 
         if (member_ids && member_ids.length > 0) {
             for (const uid of member_ids) {
@@ -77,7 +96,7 @@ router.post('/', auth, async (req, res) => {
         if (type === 'Wet-lab' && wetLabDetail) {
             await WetLabDetail.create({ ...wetLabDetail, experiment_id: experiment.id });
         }
-        if ((type === 'Dry-lab' || type === 'Computational') && dryLabDetail) {
+        if (type === 'Dry-lab' && dryLabDetail) {
             await DryLabDetail.create({ ...dryLabDetail, experiment_id: experiment.id });
         }
 
@@ -118,8 +137,8 @@ router.put('/:id', auth, async (req, res) => {
         const experiment = await Experiment.findByPk(req.params.id);
         if (!experiment) return res.status(404).json({ error: 'Experiment not found' });
 
-        const { name, type, status, start_date, end_date, notes, observations, protocol_id, project_id, member_ids, wetLabDetail, dryLabDetail } = req.body;
-        await experiment.update({ name: name || experiment.name, type, status, start_date, end_date, notes, observations, protocol_id, project_id });
+        const { name, type, status, start_date, end_date, notes, observations, results_outcome, references, protocol_id, project_id, visibility, member_ids, wetLabDetail, dryLabDetail } = req.body;
+        await experiment.update({ name: name || experiment.name, type, status, start_date, end_date, notes, observations, results_outcome, references, protocol_id, project_id, visibility: visibility !== undefined ? visibility : experiment.visibility });
 
         if (member_ids) {
             await ExperimentMember.destroy({ where: { experiment_id: experiment.id } });
@@ -213,6 +232,30 @@ router.delete('/:eid/subtasks/:sid', auth, async (req, res) => {
         const progress = await recalcProgress(req.params.eid);
         await Experiment.update({ progress }, { where: { id: req.params.eid } });
         res.json({ message: 'Subtask deleted' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /api/experiments/:id/references
+router.put('/:id/references', auth, async (req, res) => {
+    try {
+        const experiment = await Experiment.findByPk(req.params.id);
+        if (!experiment) return res.status(404).json({ error: 'Experiment not found' });
+        await experiment.update({ references: req.body.references || [] });
+        res.json({ references: experiment.references });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// PUT /api/experiments/:id/results
+router.put('/:id/results', auth, async (req, res) => {
+    try {
+        const experiment = await Experiment.findByPk(req.params.id);
+        if (!experiment) return res.status(404).json({ error: 'Experiment not found' });
+        await experiment.update({ results_outcome: req.body.results_outcome || '' });
+        res.json({ results_outcome: experiment.results_outcome });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

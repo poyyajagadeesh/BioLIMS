@@ -129,7 +129,7 @@ export default function Dashboard() {
                             <div className="card-grid card-grid-2">
                                 {activeExperiments.slice(0, 4).map(exp => (
                                     <div key={exp.id} className="experiment-card" onClick={() => navigate(`/experiments/${exp.id}`)}>
-                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: exp.type === 'Wet-lab' ? 'var(--gradient-success)' : exp.type === 'Dry-lab' ? 'var(--gradient-cool)' : 'var(--gradient-primary)' }} />
+                                        <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: 3, background: exp.type === 'Wet-lab' ? 'var(--gradient-success)' : 'var(--gradient-cool)' }} />
                                         <div className="exp-type" style={{ color: exp.type === 'Wet-lab' ? '#6ee7b7' : '#a5b4fc' }}>{exp.type}</div>
                                         <h4>{exp.name}</h4>
                                         {exp.project && <div className="exp-project">📁 {exp.project.name}</div>}

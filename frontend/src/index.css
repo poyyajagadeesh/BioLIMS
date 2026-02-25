@@ -1454,3 +1454,143 @@ tr:hover td {
   font-size: 0.78rem;
   color: var(--text-muted);
 }
+
+/* ─── DETAIL SECTIONS ─── */
+.detail-section {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.detail-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.detail-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.detail-item label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.detail-item .value {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ─── REPORT CONTAINER ─── */
+.report-container {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+/* ─── PRINT STYLES ─── */
+@media print {
+  .no-print,
+  .sidebar,
+  .filter-bar,
+  .topbar {
+    display: none !important;
+  }
+
+  .app-main {
+    margin-left: 0 !important;
+  }
+
+  .page-container {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  body {
+    background: white !important;
+    color: #1f2937 !important;
+    font-size: 11px !important;
+  }
+
+  .card,
+  .report-container {
+    background: white !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .badge {
+    border: 1px solid #d1d5db !important;
+    background: #f3f4f6 !important;
+    color: #374151 !important;
+  }
+
+  .table-container {
+    border: 1px solid #e5e7eb !important;
+  }
+
+  th {
+    background: #f9fafb !important;
+    color: #374151 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+  }
+
+  td {
+    color: #374151 !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+  }
+
+  .text-muted {
+    color: #6b7280 !important;
+  }
+
+  .text-secondary {
+    color: #4b5563 !important;
+  }
+
+  h1, h2, h3, h4 {
+    color: #111827 !important;
+    -webkit-text-fill-color: #111827 !important;
+    background: none !important;
+  }
+
+  .progress-bar {
+    background: #e5e7eb !important;
+  }
+
+  .progress-bar-fill {
+    background: #6366f1 !important;
+  }
+
+  .stat-card,
+  [style*="background: rgba"] {
+    border: 1px solid #e5e7eb !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 18mm;
+  }
+}

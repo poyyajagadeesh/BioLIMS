@@ -65,8 +65,8 @@ export default function Files() {
 
             <div className="filter-bar">
                 <div className="search-bar" style={{ minWidth: 240 }}><Search size={16} /><input placeholder="Search files..." value={search} onChange={e => setSearch(e.target.value)} /></div>
-                {['all', 'project', 'experiment', 'protocol', 'general'].map(f => (
-                    <button key={f} className={`filter-chip ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}</button>
+                {['all', 'project', 'experiment', 'protocol', 'raw_data', 'result', 'manuscript', 'general'].map(f => (
+                    <button key={f} className={`filter-chip ${filter === f ? 'active' : ''}`} onClick={() => setFilter(f)}>{f === 'all' ? 'All' : f === 'raw_data' ? 'Raw Data' : f.charAt(0).toUpperCase() + f.slice(1)}</button>
                 ))}
             </div>
 

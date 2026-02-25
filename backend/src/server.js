@@ -25,6 +25,8 @@ app.use('/api/files', require('./routes/files'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/planner', require('./routes/planner'));
 app.use('/api/activity', require('./routes/activity'));
+app.use('/api/manuscripts', require('./routes/manuscripts'));
+app.use('/api/reports', require('./routes/reports'));
 
 // Serve frontend in production
 if (process.env.NODE_ENV === 'production') {

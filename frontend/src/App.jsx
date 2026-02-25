@@ -13,6 +13,8 @@ import Planner from './pages/Planner';
 import Reminders from './pages/Reminders';
 import Files from './pages/Files';
 import Activity from './pages/Activity';
+import Manuscripts from './pages/Manuscripts';
+import Reports from './pages/Reports';
 
 function ProtectedRoute({ children }) {
     const { user, loading } = useAuth();
@@ -37,6 +39,8 @@ export default function App() {
                 <Route path="reminders" element={<Reminders />} />
                 <Route path="files" element={<Files />} />
                 <Route path="activity" element={<Activity />} />
+                <Route path="manuscripts" element={<Manuscripts />} />
+                <Route path="reports" element={<Reports />} />
             </Route>
             <Route path="*" element={<Navigate to="/" />} />
         </Routes>

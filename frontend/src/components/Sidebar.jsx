@@ -2,7 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, FolderKanban, FlaskConical, Users, BookOpen,
-    CalendarDays, Bell, HardDrive, Activity, LogOut, ChevronLeft, ChevronRight, Dna
+    CalendarDays, Bell, HardDrive, Activity, LogOut, ChevronLeft, ChevronRight, Dna,
+    PenTool, FileBarChart
 } from 'lucide-react';
 
 const navItems = [
@@ -17,6 +18,7 @@ const navItems = [
             { to: '/projects', icon: FolderKanban, label: 'Projects' },
             { to: '/experiments', icon: FlaskConical, label: 'Experiments' },
             { to: '/protocols', icon: BookOpen, label: 'Protocols & SOPs' },
+            { to: '/manuscripts', icon: PenTool, label: 'Manuscripts' },
         ]
     },
     {
@@ -24,6 +26,7 @@ const navItems = [
             { to: '/members', icon: Users, label: 'Lab Members' },
             { to: '/reminders', icon: Bell, label: 'Reminders' },
             { to: '/files', icon: HardDrive, label: 'File Repository' },
+            { to: '/reports', icon: FileBarChart, label: 'Reports' },
             { to: '/activity', icon: Activity, label: 'Activity Log' },
         ]
     },

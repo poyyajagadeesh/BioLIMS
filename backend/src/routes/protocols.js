@@ -17,7 +17,17 @@ router.get('/', auth, async (req, res) => {
             ],
             order: [['updated_at', 'DESC']],
         });
-        res.json(protocols);
+
+        // Filter by visibility for non-admin users
+        const isAdmin = req.user.role === 'Admin' || req.user.role === 'PI';
+        const filtered = isAdmin ? protocols : protocols.filter(p => {
+            if (p.visibility === 'public') return true;
+            if (p.visibility === 'private') return false;
+            // restricted: only creator can see
+            return p.created_by === req.user.id;
+        });
+
+        res.json(filtered);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -42,8 +52,8 @@ router.get('/:id', auth, async (req, res) => {
 // POST /api/protocols
 router.post('/', auth, async (req, res) => {
     try {
-        const { name, category, description, content, version, tags } = req.body;
-        const protocol = await Protocol.create({ name, category, description, content, version, tags, created_by: req.user.id });
+        const { name, category, description, content, version, tags, visibility } = req.body;
+        const protocol = await Protocol.create({ name, category, description, content, version, tags, visibility, created_by: req.user.id });
         await ActivityLog.create({ user_id: req.user.id, action: 'Created protocol', entity_type: 'Protocol', entity_id: protocol.id, entity_name: name });
         const full = await Protocol.findByPk(protocol.id, { include: [{ model: User, as: 'creator', attributes: ['id', 'name'] }] });
         res.status(201).json(full);
