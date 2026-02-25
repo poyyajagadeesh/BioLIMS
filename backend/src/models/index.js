@@ -105,6 +105,9 @@ const Protocol = sequelize.define('Protocol', {
     version: { type: DataTypes.STRING, defaultValue: '1.0' },
     file_path: { type: DataTypes.STRING },
     created_by: { type: DataTypes.UUID },
+    last_edited_by: { type: DataTypes.UUID },
+    last_edited_at: { type: DataTypes.DATE },
+    edit_history: { type: DataTypes.JSON, defaultValue: [] }, // Array of { edited_by, edited_by_name, edited_at, changes }
     tags: { type: DataTypes.JSON, defaultValue: [] },
     visibility: { type: DataTypes.ENUM('public', 'restricted', 'private'), defaultValue: 'public' },
 });
@@ -270,6 +273,7 @@ ActivityLog.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
 
 // Protocol -> User (creator)
 Protocol.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
+Protocol.belongsTo(User, { foreignKey: 'last_edited_by', as: 'lastEditor' });
 
 // Subtask -> User (assigned)
 Subtask.belongsTo(User, { foreignKey: 'assigned_to', as: 'assignee' });

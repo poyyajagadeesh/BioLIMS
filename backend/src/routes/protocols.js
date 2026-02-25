@@ -14,6 +14,7 @@ router.get('/', auth, async (req, res) => {
             where,
             include: [
                 { model: User, as: 'creator', attributes: ['id', 'name', 'avatar_color'] },
+                { model: User, as: 'lastEditor', attributes: ['id', 'name', 'avatar_color'] },
             ],
             order: [['updated_at', 'DESC']],
         });
@@ -39,6 +40,7 @@ router.get('/:id', auth, async (req, res) => {
         const protocol = await Protocol.findByPk(req.params.id, {
             include: [
                 { model: User, as: 'creator', attributes: ['id', 'name'] },
+                { model: User, as: 'lastEditor', attributes: ['id', 'name'] },
                 { model: Experiment, as: 'experiments', attributes: ['id', 'name', 'status'] },
             ],
         });
@@ -55,7 +57,12 @@ router.post('/', auth, async (req, res) => {
         const { name, category, description, content, version, tags, visibility } = req.body;
         const protocol = await Protocol.create({ name, category, description, content, version, tags, visibility, created_by: req.user.id });
         await ActivityLog.create({ user_id: req.user.id, action: 'Created protocol', entity_type: 'Protocol', entity_id: protocol.id, entity_name: name });
-        const full = await Protocol.findByPk(protocol.id, { include: [{ model: User, as: 'creator', attributes: ['id', 'name'] }] });
+        const full = await Protocol.findByPk(protocol.id, {
+            include: [
+                { model: User, as: 'creator', attributes: ['id', 'name'] },
+                { model: User, as: 'lastEditor', attributes: ['id', 'name'] },
+            ],
+        });
         res.status(201).json(full);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -67,9 +74,53 @@ router.put('/:id', auth, async (req, res) => {
     try {
         const protocol = await Protocol.findByPk(req.params.id);
         if (!protocol) return res.status(404).json({ error: 'Protocol not found' });
-        await protocol.update(req.body);
-        await ActivityLog.create({ user_id: req.user.id, action: 'Updated protocol', entity_type: 'Protocol', entity_id: protocol.id, entity_name: protocol.name });
-        res.json(protocol);
+
+        // Build a summary of what changed
+        const changedFields = [];
+        const updateFields = ['name', 'category', 'description', 'content', 'version', 'tags', 'visibility'];
+        for (const field of updateFields) {
+            if (req.body[field] !== undefined) {
+                const oldVal = protocol[field];
+                const newVal = req.body[field];
+                if (JSON.stringify(oldVal) !== JSON.stringify(newVal)) {
+                    changedFields.push(field);
+                }
+            }
+        }
+
+        // Add edit history entry
+        const editEntry = {
+            edited_by: req.user.id,
+            edited_by_name: req.user.name,
+            edited_at: new Date().toISOString(),
+            changes: changedFields.length > 0 ? changedFields.join(', ') : 'No field changes detected',
+        };
+        const currentHistory = protocol.edit_history || [];
+        const updatedHistory = [editEntry, ...currentHistory].slice(0, 50); // Keep last 50 edits
+
+        await protocol.update({
+            ...req.body,
+            last_edited_by: req.user.id,
+            last_edited_at: new Date(),
+            edit_history: updatedHistory,
+        });
+
+        await ActivityLog.create({
+            user_id: req.user.id,
+            action: 'Updated protocol',
+            entity_type: 'Protocol',
+            entity_id: protocol.id,
+            entity_name: protocol.name,
+            details: changedFields.length > 0 ? `Changed: ${changedFields.join(', ')}` : null,
+        });
+
+        const full = await Protocol.findByPk(protocol.id, {
+            include: [
+                { model: User, as: 'creator', attributes: ['id', 'name', 'avatar_color'] },
+                { model: User, as: 'lastEditor', attributes: ['id', 'name', 'avatar_color'] },
+            ],
+        });
+        res.json(full);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

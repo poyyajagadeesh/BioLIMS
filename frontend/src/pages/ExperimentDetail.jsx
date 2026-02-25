@@ -53,6 +53,21 @@ export default function ExperimentDetail() {
     // File upload state
     const [uploading, setUploading] = useState(false);
 
+    // Wet-lab form state
+    const [editingWetLab, setEditingWetLab] = useState(false);
+    const [wetLabForm, setWetLabForm] = useState({
+        cell_line: '', cell_source: '', passage_number: '', seeding_density: '',
+        fbs_percentage: '', antibiotics: '', media_recipe: '', additives: '',
+        treatment_drug: '', treatment_concentration: '', treatment_duration: '',
+        incubation_temp: '37', incubation_co2: '5', incubation_humidity: '95',
+        morphology_observations: '',
+    });
+
+    // Quick assign protocol state
+    const [showAssignProtocol, setShowAssignProtocol] = useState(false);
+    const [assignProtocolId, setAssignProtocolId] = useState('');
+    const [allProtocols, setAllProtocols] = useState([]);
+
     const isAdmin = user?.role === 'Admin' || user?.role === 'PI';
 
     const fetchExp = () => api.get(`/experiments/${id}`).then(res => {
@@ -168,6 +183,57 @@ export default function ExperimentDetail() {
     const deleteFile = async (fileId) => {
         try { await api.delete(`/files/${fileId}`); fetchExp(); toast.success('File deleted'); } catch { toast.error('Failed'); }
     };
+
+    // Wet-lab handlers
+    const saveWetLab = async () => {
+        try {
+            const payload = { ...wetLabForm };
+            if (payload.passage_number) payload.passage_number = parseInt(payload.passage_number);
+            if (payload.fbs_percentage) payload.fbs_percentage = parseFloat(payload.fbs_percentage);
+            if (payload.incubation_temp) payload.incubation_temp = parseFloat(payload.incubation_temp);
+            if (payload.incubation_co2) payload.incubation_co2 = parseFloat(payload.incubation_co2);
+            if (payload.incubation_humidity) payload.incubation_humidity = parseFloat(payload.incubation_humidity);
+            await api.put(`/experiments/${id}`, { wetLabDetail: payload });
+            setEditingWetLab(false);
+            fetchExp();
+            toast.success('Wet-lab details saved');
+        } catch (err) { toast.error(err.response?.data?.error || 'Failed to save'); }
+    };
+
+    const startEditWetLab = (existing) => {
+        if (existing) {
+            setWetLabForm({
+                cell_line: existing.cell_line || '', cell_source: existing.cell_source || '',
+                passage_number: existing.passage_number?.toString() || '', seeding_density: existing.seeding_density || '',
+                fbs_percentage: existing.fbs_percentage?.toString() || '', antibiotics: existing.antibiotics || '',
+                media_recipe: existing.media_recipe || '', additives: existing.additives || '',
+                treatment_drug: existing.treatment_drug || '', treatment_concentration: existing.treatment_concentration || '',
+                treatment_duration: existing.treatment_duration || '',
+                incubation_temp: existing.incubation_temp?.toString() || '37',
+                incubation_co2: existing.incubation_co2?.toString() || '5',
+                incubation_humidity: existing.incubation_humidity?.toString() || '95',
+                morphology_observations: existing.morphology_observations || '',
+            });
+        }
+        setEditingWetLab(true);
+    };
+
+    // Quick assign protocol
+    const assignProtocol = async () => {
+        try {
+            await api.put(`/experiments/${id}`, { protocol_id: assignProtocolId || null });
+            setShowAssignProtocol(false);
+            fetchExp();
+            toast.success(assignProtocolId ? 'Protocol assigned' : 'Protocol removed');
+        } catch (err) { toast.error('Failed to assign protocol'); }
+    };
+
+    const openAssignProtocol = () => {
+        api.get('/protocols').then(res => setAllProtocols(res.data)).catch(console.error);
+        setAssignProtocolId(exp.protocol_id || '');
+        setShowAssignProtocol(true);
+    };
+
 
     if (loading) return <div className="page-container"><div className="loading-screen" style={{ minHeight: '50vh' }}><div className="spinner" /></div></div>;
     if (!exp) return null;
@@ -287,7 +353,19 @@ export default function ExperimentDetail() {
                     {exp.notes && <div className="detail-section"><h3>📝 Notes</h3><p className="text-secondary">{exp.notes}</p></div>}
                     {exp.observations && <div className="detail-section"><h3>🔬 Observations</h3><p className="text-secondary">{exp.observations}</p></div>}
                     {exp.results_outcome && <div className="detail-section"><h3>📊 Results & Outcome</h3><p className="text-secondary" style={{ whiteSpace: 'pre-wrap' }}>{exp.results_outcome}</p></div>}
-                    {exp.protocol && <div className="detail-section"><h3>📋 Protocol</h3><p className="text-secondary">{exp.protocol.name} (v{exp.protocol.version}) — {exp.protocol.category}</p></div>}
+                    <div className="detail-section">
+                        <div className="flex items-center justify-between">
+                            <h3>📋 Protocol / SOP</h3>
+                            <button className="btn btn-secondary btn-sm" onClick={openAssignProtocol}>
+                                <BookOpen size={14} /> {exp.protocol ? 'Change Protocol' : 'Assign Protocol'}
+                            </button>
+                        </div>
+                        {exp.protocol ? (
+                            <p className="text-secondary mt-8">{exp.protocol.name} (v{exp.protocol.version}) — {exp.protocol.category}</p>
+                        ) : (
+                            <p className="text-muted mt-8" style={{ fontSize: '0.85rem' }}>No protocol assigned yet. Click "Assign Protocol" to link one.</p>
+                        )}
+                    </div>
                     {exp.references?.length > 0 && (
                         <div className="detail-section">
                             <h3>📚 References ({exp.references.length})</h3>
@@ -481,9 +559,12 @@ export default function ExperimentDetail() {
             )}
 
             {/* Wet-lab */}
-            {tab === 'wetlab' && wet && (
+            {tab === 'wetlab' && !editingWetLab && wet && (
                 <div className="card">
-                    <h3 className="mb-16">🧫 Wet-Lab Details</h3>
+                    <div className="flex items-center justify-between mb-16">
+                        <h3>🧫 Wet-Lab Details</h3>
+                        <button className="btn btn-secondary btn-sm" onClick={() => startEditWetLab(wet)}><Edit2 size={14} /> Edit</button>
+                    </div>
                     <div className="detail-grid">
                         <div className="detail-item"><label>Cell Line</label><div className="value">{wet.cell_line || '—'}</div></div>
                         <div className="detail-item"><label>Source</label><div className="value">{wet.cell_source || '—'}</div></div>
@@ -512,7 +593,52 @@ export default function ExperimentDetail() {
                     {wet.morphology_observations && <div className="detail-section mt-16"><h3>🔬 Morphology Observations</h3><p className="text-secondary">{wet.morphology_observations}</p></div>}
                 </div>
             )}
-            {tab === 'wetlab' && !wet && <div className="card"><div className="empty-state"><Beaker size={32} /><p>No wet-lab details recorded yet</p></div></div>}
+            {tab === 'wetlab' && !editingWetLab && !wet && (
+                <div className="card">
+                    <div className="empty-state" style={{ padding: 40 }}>
+                        <Beaker size={36} />
+                        <h3>No wet-lab details recorded yet</h3>
+                        <p>Add cell culture, treatment, and incubation details for this experiment.</p>
+                        <button className="btn btn-primary mt-16" onClick={() => startEditWetLab(null)}><Plus size={14} /> Add Wet-Lab Details</button>
+                    </div>
+                </div>
+            )}
+            {tab === 'wetlab' && editingWetLab && (
+                <div className="card">
+                    <div className="flex items-center justify-between mb-16">
+                        <h3>🧫 {wet ? 'Edit' : 'Add'} Wet-Lab Details</h3>
+                        <div className="flex gap-8">
+                            <button className="btn btn-primary btn-sm" onClick={saveWetLab}><Save size={14} /> Save</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setEditingWetLab(false)}>Cancel</button>
+                        </div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>🧬 CELL CULTURE</div>
+                    <div className="form-row form-row-3">
+                        <div className="form-group"><label>Cell Line</label><input className="form-control" value={wetLabForm.cell_line} onChange={e => setWetLabForm({ ...wetLabForm, cell_line: e.target.value })} placeholder="e.g. HeLa, MCF-7" /></div>
+                        <div className="form-group"><label>Cell Source</label><input className="form-control" value={wetLabForm.cell_source} onChange={e => setWetLabForm({ ...wetLabForm, cell_source: e.target.value })} placeholder="e.g. ATCC" /></div>
+                        <div className="form-group"><label>Passage Number</label><input className="form-control" type="number" value={wetLabForm.passage_number} onChange={e => setWetLabForm({ ...wetLabForm, passage_number: e.target.value })} placeholder="e.g. 12" /></div>
+                    </div>
+                    <div className="form-row form-row-3">
+                        <div className="form-group"><label>Seeding Density</label><input className="form-control" value={wetLabForm.seeding_density} onChange={e => setWetLabForm({ ...wetLabForm, seeding_density: e.target.value })} placeholder="e.g. 5x10⁴ cells/well" /></div>
+                        <div className="form-group"><label>FBS %</label><input className="form-control" type="number" step="0.1" value={wetLabForm.fbs_percentage} onChange={e => setWetLabForm({ ...wetLabForm, fbs_percentage: e.target.value })} placeholder="e.g. 10" /></div>
+                        <div className="form-group"><label>Antibiotics</label><input className="form-control" value={wetLabForm.antibiotics} onChange={e => setWetLabForm({ ...wetLabForm, antibiotics: e.target.value })} placeholder="e.g. 1% Pen/Strep" /></div>
+                    </div>
+                    <div className="form-group"><label>Media Recipe</label><textarea className="form-control" value={wetLabForm.media_recipe} onChange={e => setWetLabForm({ ...wetLabForm, media_recipe: e.target.value })} rows={2} placeholder="e.g. DMEM + 10% FBS + 1% Pen/Strep" /></div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', margin: '16px 0 12px' }}>💊 TREATMENT</div>
+                    <div className="form-row form-row-3">
+                        <div className="form-group"><label>Drug / Compound</label><input className="form-control" value={wetLabForm.treatment_drug} onChange={e => setWetLabForm({ ...wetLabForm, treatment_drug: e.target.value })} placeholder="e.g. Cisplatin" /></div>
+                        <div className="form-group"><label>Concentration</label><input className="form-control" value={wetLabForm.treatment_concentration} onChange={e => setWetLabForm({ ...wetLabForm, treatment_concentration: e.target.value })} placeholder="e.g. 10 µM" /></div>
+                        <div className="form-group"><label>Duration</label><input className="form-control" value={wetLabForm.treatment_duration} onChange={e => setWetLabForm({ ...wetLabForm, treatment_duration: e.target.value })} placeholder="e.g. 24 hours" /></div>
+                    </div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', margin: '16px 0 12px' }}>🌡️ INCUBATION CONDITIONS</div>
+                    <div className="form-row form-row-3">
+                        <div className="form-group"><label>Temperature (°C)</label><input className="form-control" type="number" step="0.1" value={wetLabForm.incubation_temp} onChange={e => setWetLabForm({ ...wetLabForm, incubation_temp: e.target.value })} /></div>
+                        <div className="form-group"><label>CO₂ (%)</label><input className="form-control" type="number" step="0.1" value={wetLabForm.incubation_co2} onChange={e => setWetLabForm({ ...wetLabForm, incubation_co2: e.target.value })} /></div>
+                        <div className="form-group"><label>Humidity (%)</label><input className="form-control" type="number" step="0.1" value={wetLabForm.incubation_humidity} onChange={e => setWetLabForm({ ...wetLabForm, incubation_humidity: e.target.value })} /></div>
+                    </div>
+                    <div className="form-group"><label>Morphology Observations</label><textarea className="form-control" value={wetLabForm.morphology_observations} onChange={e => setWetLabForm({ ...wetLabForm, morphology_observations: e.target.value })} rows={3} placeholder="Describe cell morphology, confluence, etc." /></div>
+                </div>
+            )}
 
             {/* Dry-lab */}
             {tab === 'drylab' && dry && (
@@ -533,6 +659,31 @@ export default function ExperimentDetail() {
                 </div>
             )}
             {tab === 'drylab' && !dry && <div className="card"><div className="empty-state"><Cpu size={32} /><p>No dry-lab details recorded yet</p></div></div>}
+
+            {/* Assign Protocol Modal */}
+            {showAssignProtocol && (
+                <div className="modal-overlay" onClick={() => setShowAssignProtocol(false)}>
+                    <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 500 }}>
+                        <div className="modal-header">
+                            <h2><BookOpen size={18} style={{ verticalAlign: 'middle', marginRight: 8 }} />Assign Protocol / SOP</h2>
+                            <button className="btn btn-ghost btn-icon" onClick={() => setShowAssignProtocol(false)}><X size={18} /></button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="form-group">
+                                <label>Select Protocol</label>
+                                <select className="form-control" value={assignProtocolId} onChange={e => setAssignProtocolId(e.target.value)}>
+                                    <option value="">None (remove protocol)</option>
+                                    {allProtocols.map(p => <option key={p.id} value={p.id}>{p.name} (v{p.version}) — {p.category}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setShowAssignProtocol(false)}>Cancel</button>
+                            <button className="btn btn-primary" onClick={assignProtocol}><Save size={14} /> Assign</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
