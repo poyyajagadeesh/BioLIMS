@@ -291,19 +291,24 @@ export default function ExperimentDetail() {
         setEditingDryLab(true);
     };
 
-    // Progress drag handler
+    // Progress drag handler — supports both mouse and touch
     const calcProgress = useCallback((e) => {
         if (!progressBarRef.current) return 0;
         const rect = progressBarRef.current.getBoundingClientRect();
-        const x = Math.max(0, Math.min(e.clientX - rect.left, rect.width));
+        const clientX = e.touches ? e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX : e.clientX;
+        const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
         return Math.round((x / rect.width) * 100 / 5) * 5; // snap to 5%
     }, []);
 
-    const handleProgressMouseDown = (e) => {
+    const handleProgressStart = (e) => {
         e.preventDefault();
         isDragging.current = true;
         setDraggingProgress(true);
         setHoverProgress(calcProgress(e));
+
+        const isTouch = e.type === 'touchstart';
+        const moveEvent = isTouch ? 'touchmove' : 'mousemove';
+        const endEvent = isTouch ? 'touchend' : 'mouseup';
 
         const onMove = (ev) => {
             if (isDragging.current) setHoverProgress(calcProgress(ev));
@@ -313,16 +318,16 @@ export default function ExperimentDetail() {
             setDraggingProgress(false);
             const val = calcProgress(ev);
             setHoverProgress(null);
-            window.removeEventListener('mousemove', onMove);
-            window.removeEventListener('mouseup', onUp);
+            window.removeEventListener(moveEvent, onMove);
+            window.removeEventListener(endEvent, onUp);
             try {
                 const res = await api.put(`/experiments/${id}/progress`, { progress: val });
                 fetchExp();
                 toast.success(`Progress → ${res.data.progress}%`);
             } catch (err) { toast.error('Failed to update progress'); }
         };
-        window.addEventListener('mousemove', onMove);
-        window.addEventListener('mouseup', onUp);
+        window.addEventListener(moveEvent, onMove, { passive: false });
+        window.addEventListener(endEvent, onUp);
     };
 
     const handleBarHover = (e) => {
@@ -375,10 +380,12 @@ export default function ExperimentDetail() {
                         </div>
                         <div
                             ref={progressBarRef}
-                            onMouseDown={handleProgressMouseDown}
+                            onMouseDown={handleProgressStart}
+                            onTouchStart={handleProgressStart}
                             onMouseMove={handleBarHover}
                             onMouseLeave={() => { if (!isDragging.current) setHoverProgress(null); }}
-                            style={{ position: 'relative', height: 14, background: 'var(--bg-tertiary)', borderRadius: 10, marginTop: 8, cursor: 'pointer', overflow: 'hidden', transition: 'height 0.15s' }}
+                            className="progress-drag-bar"
+                            style={{ position: 'relative', height: 14, background: 'var(--bg-tertiary)', borderRadius: 10, marginTop: 8, cursor: 'pointer', overflow: 'hidden', transition: 'height 0.15s', touchAction: 'none' }}
                         >
                             {/* Actual progress */}
                             <div style={{ position: 'absolute', top: 0, left: 0, height: '100%', width: `${exp.progress}%`, background: 'var(--gradient-primary)', borderRadius: 10, transition: draggingProgress ? 'none' : 'width 0.3s', opacity: hoverProgress !== null ? 0.3 : 1 }} />

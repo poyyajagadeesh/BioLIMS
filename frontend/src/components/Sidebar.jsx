@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import {
     LayoutDashboard, FolderKanban, FlaskConical, Users, BookOpen,
     CalendarDays, Bell, HardDrive, Activity, LogOut, ChevronLeft, ChevronRight, Dna,
-    PenTool, FileBarChart
+    PenTool, FileBarChart, X
 } from 'lucide-react';
 
 const navItems = [
@@ -32,15 +32,24 @@ const navItems = [
     },
 ];
 
-export default function Sidebar({ collapsed, onToggle }) {
+export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose, isMobile }) {
     const { user, logout } = useAuth();
     const location = useLocation();
 
+    const handleNavClick = () => {
+        if (isMobile && onMobileClose) onMobileClose();
+    };
+
     return (
-        <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+        <aside className={`sidebar ${collapsed ? 'collapsed' : ''} ${isMobile ? 'mobile-sidebar' : ''} ${mobileOpen ? 'mobile-open' : ''}`}>
             <div className="sidebar-logo" onClick={onToggle}>
                 <div className="logo-icon"><Dna size={20} color="white" /></div>
                 <h1>BioLIMS</h1>
+                {isMobile && (
+                    <button className="btn btn-ghost btn-icon mobile-close-btn" onClick={onMobileClose} style={{ marginLeft: 'auto' }}>
+                        <X size={20} />
+                    </button>
+                )}
             </div>
 
             <nav className="sidebar-nav">
@@ -53,6 +62,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                                 to={item.to}
                                 end={item.to === '/'}
                                 className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                                onClick={handleNavClick}
                             >
                                 <item.icon size={20} />
                                 <span>{item.label}</span>
