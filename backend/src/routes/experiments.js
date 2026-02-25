@@ -276,5 +276,48 @@ router.put('/:id/results', auth, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+// PUT /api/experiments/:id/progress — direct progress update by any member
+router.put('/:id/progress', auth, async (req, res) => {
+    try {
+        const experiment = await Experiment.findByPk(req.params.id);
+        if (!experiment) return res.status(404).json({ error: 'Experiment not found' });
+
+        const { progress } = req.body;
+        if (progress === undefined || progress < 0 || progress > 100) {
+            return res.status(400).json({ error: 'Progress must be between 0 and 100' });
+        }
+
+        await experiment.update({ progress: Math.round(progress) });
+
+        // Also update status based on progress
+        if (progress === 100 && experiment.status !== 'Completed') {
+            await experiment.update({ status: 'Completed' });
+        } else if (progress > 0 && progress < 100 && experiment.status === 'Planned') {
+            await experiment.update({ status: 'In Progress' });
+        }
+
+        // Recalculate parent project progress
+        if (experiment.project_id) {
+            const siblings = await Experiment.findAll({ where: { project_id: experiment.project_id } });
+            if (siblings.length > 0) {
+                const avg = siblings.reduce((s, e) => s + (e.progress || 0), 0) / siblings.length;
+                await Project.update({ progress: Math.round(avg) }, { where: { id: experiment.project_id } });
+            }
+        }
+
+        await ActivityLog.create({
+            user_id: req.user.id,
+            action: 'Updated progress',
+            entity_type: 'Experiment',
+            entity_id: experiment.id,
+            entity_name: experiment.name,
+            details: `Progress set to ${Math.round(progress)}%`,
+        });
+
+        res.json({ progress: experiment.progress, status: experiment.status });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 module.exports = router;

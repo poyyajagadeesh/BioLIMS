@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, CheckCircle, Beaker, Cpu, Edit2, Trash2, Upload, Download, FileText, BookOpen, Save, Link2, File, Shield, Eye, EyeOff, Lock } from 'lucide-react';
+import { ArrowLeft, Plus, X, CheckCircle, Beaker, Cpu, Edit2, Trash2, Upload, Download, FileText, BookOpen, Save, Link2, File, Shield, Eye, EyeOff, Lock, TrendingUp } from 'lucide-react';
 import { format } from 'date-fns';
 
 const statusColors = {
@@ -49,6 +49,10 @@ export default function ExperimentDetail() {
     // Results state
     const [editingResults, setEditingResults] = useState(false);
     const [resultsText, setResultsText] = useState('');
+
+    // Progress update state
+    const [showProgressEdit, setShowProgressEdit] = useState(false);
+    const [progressValue, setProgressValue] = useState(0);
 
     // File upload state
     const [uploading, setUploading] = useState(false);
@@ -234,6 +238,16 @@ export default function ExperimentDetail() {
         setShowAssignProtocol(true);
     };
 
+    // Progress update handler
+    const updateProgress = async (value) => {
+        try {
+            const res = await api.put(`/experiments/${id}/progress`, { progress: value });
+            setShowProgressEdit(false);
+            fetchExp();
+            toast.success(`Progress updated to ${res.data.progress}%`);
+        } catch (err) { toast.error(err.response?.data?.error || 'Failed to update progress'); }
+    };
+
 
     if (loading) return <div className="page-container"><div className="loading-screen" style={{ minHeight: '50vh' }}><div className="spinner" /></div></div>;
     if (!exp) return null;
@@ -273,7 +287,31 @@ export default function ExperimentDetail() {
                     </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 20, marginTop: 16 }}>
-                    <div><div className="text-xs text-muted mb-8">PROGRESS</div><div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#a5b4fc' }}>{exp.progress}%</div><div className="progress-bar mt-8"><div className="progress-bar-fill" style={{ width: `${exp.progress}%` }} /></div></div>
+                    <div style={{ cursor: 'pointer', position: 'relative' }} onClick={() => { setProgressValue(exp.progress || 0); setShowProgressEdit(!showProgressEdit); }}>
+                        <div className="text-xs text-muted mb-8" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>PROGRESS <TrendingUp size={10} /> <span style={{ fontSize: '0.6rem', color: 'var(--accent-primary)' }}>click to update</span></div>
+                        <div style={{ fontSize: '1.4rem', fontWeight: 700, color: '#a5b4fc' }}>{exp.progress}%</div>
+                        <div className="progress-bar mt-8"><div className="progress-bar-fill" style={{ width: `${exp.progress}%` }} /></div>
+                        {showProgressEdit && (
+                            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', top: '100%', left: 0, zIndex: 20, marginTop: 8, padding: 16, background: 'var(--bg-card)', border: '1px solid var(--border-primary)', borderRadius: 'var(--radius-sm)', boxShadow: '0 8px 32px rgba(0,0,0,0.3)', minWidth: 260 }}>
+                                <div className="text-xs text-muted mb-8" style={{ fontWeight: 600 }}>SET PROGRESS</div>
+                                <div className="flex gap-4 mb-12" style={{ flexWrap: 'wrap' }}>
+                                    {[0, 10, 25, 50, 75, 90, 100].map(v => (
+                                        <button key={v} className={`filter-chip ${progressValue === v ? 'active' : ''}`}
+                                            onClick={() => setProgressValue(v)}
+                                            style={{ minWidth: 36, justifyContent: 'center', fontSize: '0.75rem', padding: '4px 8px' }}>{v}%</button>
+                                    ))}
+                                </div>
+                                <input type="range" min="0" max="100" step="5" value={progressValue}
+                                    onChange={e => setProgressValue(Number(e.target.value))}
+                                    style={{ width: '100%', accentColor: '#a5b4fc', marginBottom: 8 }} />
+                                <div className="text-sm" style={{ textAlign: 'center', marginBottom: 12, fontWeight: 600, color: '#a5b4fc' }}>{progressValue}%</div>
+                                <div className="flex gap-8">
+                                    <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => updateProgress(progressValue)}><Save size={12} /> Save</button>
+                                    <button className="btn btn-ghost btn-sm" onClick={() => setShowProgressEdit(false)}>Cancel</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
                     <div><div className="text-xs text-muted mb-8">SUBTASKS</div><div style={{ fontSize: '1.4rem', fontWeight: 700 }}>{exp.subtasks?.filter(s => s.status === 'Completed').length || 0}/{exp.subtasks?.length || 0}</div></div>
                     <div><div className="text-xs text-muted mb-8">TEAM</div><div className="avatar-group">{exp.members?.map(m => <div key={m.id} className="user-avatar" style={{ background: m.avatar_color }} title={m.name}>{m.name?.charAt(0)}</div>)}</div></div>
                     <div><div className="text-xs text-muted mb-8">DATES</div><div className="text-sm">{exp.start_date ? format(new Date(exp.start_date), 'MMM d') : 'TBD'} → {exp.end_date ? format(new Date(exp.end_date), 'MMM d, yyyy') : 'TBD'}</div></div>
